@@ -22,22 +22,34 @@ class Generator(nn.Module):
         super(Generator, self).__init__()
         nf = int(nf)
         normalize = str(normalize)
-        layer_depths = [z_dim, nf*8, nf*4, nf*2, nf]
-        kernel_dim = [4, 4, 4, 4, 4]
-        strides = [1, 2, 2, 2, 2]
-        padding = [0, 1, 1, 1, 1]
+        layer_depths = [z_dim, nf*8, nf*4]
+        kernel_dim = [4, 4, 4, 4]
+        strides = [1, 2, 2, 2]
+        padding = [0, 1, 1, 1]
+
+        if output_dim == 32:
+            layer_depths += [nf*2, nf, nf//2]
+            kernel_dim += [3, 3, 3]
+            strides += [1, 1, 1]
+            padding += [1, 1, 1]
+
+        if output_dim == 64:
+            layer_depths += [nf*2, nf, nf//2]
+            kernel_dim += [4, 4, 4]
+            strides += [2, 1, 1]
+            padding += [1, 1, 1]
 
         if output_dim == 128:
-            layer_depths += [nf//2]
-            kernel_dim += [4]
-            strides += [2]
-            padding += [1]
+            layer_depths += [nf*2, nf, nf//2]
+            kernel_dim += [4, 4, 4]
+            strides += [2, 2, 1]
+            padding += [1, 1, 1]
 
         if output_dim == 256:
-            layer_depths += [nf//2, nf//4]
-            kernel_dim += [4, 4]
-            strides += [2, 2]
-            padding += [1, 1]
+            layer_depths += [nf*2, nf, nf//2]
+            kernel_dim += [4, 4, 4]
+            strides += [2, 2, 2]
+            padding += [1, 1, 1]
 
         layers = []
         for i in range(len(layer_depths) - 1):
@@ -64,11 +76,13 @@ class Discriminator(nn.Module):
         normalize = str(normalize)
         input_dim = int(input_dim)
         num_outputs = int(num_outputs)
-        layer_depth = [channels, nf, nf*2, nf*4, nf*8]
+        layer_depth = [channels, nf, nf*2, nf*4]
+        if input_dim == 64:
+            layer_depth += [nf*8]
         if input_dim == 128:
-            layer_depth += [nf*16]
+            layer_depth += [nf*8, nf*16]
         if input_dim == 256:
-            layer_depth += [nf * 16, nf*32]
+            layer_depth += [nf*8, nf * 16, nf*32]
 
         layers = []
         for i in range(len(layer_depth) - 1):

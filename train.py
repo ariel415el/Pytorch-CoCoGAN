@@ -5,6 +5,7 @@ import torch
 from losses import get_loss_function
 from utils.diffaug import DiffAugment
 from utils.common import dump_images, compose_experiment_name
+from utils.patch_generation import generate, generate_full
 from utils.train_utils import copy_G_params, load_params, get_models_and_optimizers, parse_train_args, save_model
 from utils.data import get_dataloader
 from utils.logger import get_dir, PLTLogger, WandbLogger
@@ -13,8 +14,8 @@ from utils.logger import get_dir, PLTLogger, WandbLogger
 def train_GAN(args):
     prior, netG, netD, optimizerG, optimizerD, start_iteration = get_models_and_optimizers(args, device, saved_model_folder)
 
-    debug_fixed_noise = prior.sample(args.f_bs).to(device)
-    debug_fixed_reals = next(iter(train_loader)).to(device)
+    debug_fixed_noise = prior.sample(args.batch_size)
+    debug_fixed_reals, debug_fixed_macro_coords = next(iter(train_loader))
 
     loss_function = get_loss_function(args.loss_function)
 
@@ -23,17 +24,17 @@ def train_GAN(args):
     start = time()
     iteration = start_iteration
     while iteration < args.n_iterations:
-        for real_images in train_loader:
-            real_images = real_images.to(device)
+        for macro_patch, top_left_coord in train_loader:
+            macro_patch = macro_patch.to(device)
 
-            noise = prior.sample(args.f_bs).to(device)
-            fake_images = netG(noise)
+            noise = prior.sample(args.batch_size).to(device)
+            fake_images = generate(netG, noise, top_left_coord, args)
 
-            real_images = DiffAugment(real_images, policy=args.augmentation)
+            macro_patch = DiffAugment(macro_patch, policy=args.augmentation)
             fake_images = DiffAugment(fake_images, policy=args.augmentation)
 
             # #####  1. train Discriminator #####
-            Dloss, debug_Dlosses = loss_function.trainD(netD, real_images, fake_images)
+            Dloss, debug_Dlosses = loss_function.trainD(netD, macro_patch, fake_images)
             netD.zero_grad()
             Dloss.backward()
             optimizerD.step()
@@ -43,11 +44,11 @@ def train_GAN(args):
             # #####  2. train Generator #####
             if iteration % args.G_step_every == 0:
                 if not args.no_fake_resample:
-                    noise = prior.sample(args.f_bs).to(device)
-                    fake_images = netG(noise)
+                    noise = prior.sample(args.batch_size).to(device)
+                    fake_images = generate(netG, noise, top_left_coord, args)
                     fake_images = DiffAugment(fake_images, policy=args.augmentation)
 
-                Gloss, debug_Glosses = loss_function.trainG(netD, real_images, fake_images)
+                Gloss, debug_Glosses = loss_function.trainG(netD, macro_patch, fake_images)
                 netG.zero_grad()
                 Gloss.backward()
                 optimizerG.step()
@@ -79,7 +80,9 @@ def evaluate(netG, fixed_noise, debug_fixed_reals, saved_image_folder, iteration
     netG.eval()
     start = time()
     with torch.no_grad():
-        dump_images(netG(fixed_noise),  f'{saved_image_folder}/{iteration}.png')
+        dump_images(generate_full(netG, fixed_noise.to(device), args),  f'{saved_image_folder}/{iteration}.png')
+        dump_images(generate(netG, fixed_noise.to(device), None, args),  f'{saved_image_folder}/{iteration}_macro_path.png')
+
         if iteration == 0:
             dump_images(debug_fixed_reals, f'{saved_image_folder}/debug_fixed_reals.png')
 
@@ -101,9 +104,7 @@ if __name__ == "__main__":
     if args.device != 'cpu':
         print(f"Working on device: {torch.cuda.get_device_name(device)}")
 
-    train_loader = get_dataloader(args.data_path, args.im_size, args.r_bs, args.n_workers,
-                                               val_percentage=0, gray_scale=args.gray_scale, center_crop=args.center_crop,
-                                               load_to_memory=args.load_data_to_memory, limit_data=args.limit_data)
+    train_loader = get_dataloader(args.data_path, args.im_size, args.batch_size, args.n_workers, args)
 
     train_GAN(args)
 

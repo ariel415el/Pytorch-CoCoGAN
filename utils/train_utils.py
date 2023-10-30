@@ -22,12 +22,15 @@ def parse_train_args(arguments_string=None):
     # Model
     parser.add_argument('--gen_arch', default='DCGAN')
     parser.add_argument('--disc_arch', default='DCGAN')
-    parser.add_argument('--im_size', default=256, type=int)
-    parser.add_argument('--z_dim', default=256, type=int)
+    parser.add_argument('--im_size', default=128, type=int)
+    parser.add_argument('--z_dim', default=128, type=int)
+    parser.add_argument('--full_coords', action='store_true', default=False)
+    parser.add_argument('--macro_patch_size', default=64, type=int)
+    parser.add_argument('--micro_patch_size', default=32, type=int)
+
 
     # Training
-    parser.add_argument('--r_bs', default=8, type=int, help="Real data batch size")
-    parser.add_argument('--f_bs', default=8, type=int, help="Fake data batch size")
+    parser.add_argument('--batch_size', default=64, type=int, help="Real data batch size")
     parser.add_argument('--loss_function', default="SoftHingeLoss", type=str)
     parser.add_argument('--lrG', default=0.0002, type=float)
     parser.add_argument('--lrD', default=0.0002
@@ -49,7 +52,6 @@ def parse_train_args(arguments_string=None):
     parser.add_argument('--n_workers', default=4, type=int)
     parser.add_argument('--resume_last_ckpt', action='store_true', default=False,
                         help="Search for the latest ckpt in the same folder to resume training")
-    parser.add_argument('--load_data_to_memory', action='store_true', default=False)
     parser.add_argument('--device', default="cuda:0")
 
     if arguments_string is not None:
